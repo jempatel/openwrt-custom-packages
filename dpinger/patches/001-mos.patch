@@ -1,0 +1,357 @@
+--- a/dpinger.c	2017-12-09 11:07:23.000000000 +0530
++++ b/dpinger.c	2021-04-18 15:18:53.986049919 +0530
+@@ -58,6 +58,8 @@
+ #include <pthread.h>
+ #include <syslog.h>
+ 
++#define DEFAULT_R				93.2
++
+ 
+ // Who we are
+ static const char *             progname;
+@@ -100,6 +102,8 @@
+ // Threshold for triggering alarms based on loss percentage
+ static unsigned long            loss_alarm_threshold_percent = 0;
+ 
++static unsigned long            mos_alarm_threshold = 0;
++
+ // Command to invoke for alerts
+ static char *                   alert_cmd = NULL;
+ static size_t                   alert_cmd_offset;
+@@ -117,8 +121,8 @@
+ 
+ static char                     identifier[64] = "\0";
+ 
+-// Length of maximum output (dest_str alarm_flag average_latency_usec latency_deviation average_loss_percent)
+-#define OUTPUT_MAX              (sizeof(identifier) + sizeof(dest_str) + sizeof(" 1 999999999999 999999999999 100\0"))
++// Length of maximum output (dest_str alarm_flag average_latency_usec latency_deviation average_loss_percent mos)
++#define OUTPUT_MAX              (sizeof(identifier) + sizeof(dest_str) + sizeof(" 1 999999999999 999999999999 100 1.00\0"))
+ 
+ 
+ // Main ping status array
+@@ -454,6 +458,135 @@
+     }
+ }
+ 
++static inline float
++r_from_elt(float elt, float R)
++{
++	float r;
++
++	if (elt > 500) {
++		r = 10;
++	} else if (elt > 300) {
++		r = 19;
++	} else if (elt > 150) {
++		r = 34;
++	} else if (elt > 95) {
++		r = 59;
++	} else if (elt > 80) {
++		r = 64;
++	} else if (elt > 60) {
++		r = 79;
++	} else {
++		r = R;
++	}
++
++	return r;
++}
++
++static inline float
++r_from_avg_latency(float avg , float R)
++{
++	float r;
++
++	if (avg > 300) {
++		r = 10;
++	} else if (avg > 250) {
++		r = 21;
++	} else if (avg > 150) {
++		r = 41;
++	} else if (avg > 80) {
++		r = 59;
++	} else if (avg > 60) {
++		r = 64;
++	} else if (avg > 50) {
++		r = 79;
++	} else {
++		r = R;
++	}
++
++	return r;
++}
++
++static inline float
++r_from_avg_loss(float loss, float R)
++{
++	float r = 0;
++
++	if (loss > 35) {
++		r = 10;
++	} else if (loss > 20) {
++		r = 21;
++	} else if (loss > 10) {
++		r = 41;
++	} else if (loss > 7) {
++		r = 55;
++	} else if (loss > 5) {
++		r = 69;
++	} else {
++		r = R;
++	}
++
++	return r;
++}
++
++static inline float
++get_mos_from_r(float r)
++{
++	return (1 + (0.035) * r + 0.000007 * r * (r - 60) * (100 - r));
++}
++
++static float
++calculate_mos(unsigned long average_latency_usec, unsigned long latency_deviation, unsigned long average_loss_percent)
++{
++	int latency, jitter;
++	int effective_latency;
++	float mos, R = DEFAULT_R;
++	float r_value, r_loss;
++
++	latency = average_latency_usec / 1000;
++	jitter = latency_deviation / 1000;
++	effective_latency = latency  + jitter * 2 + 10;
++
++	if (effective_latency > 700) {
++		effective_latency = 10000;
++	} else {
++		R = r_from_elt(effective_latency, R);
++	}
++
++	if (latency > 500) {
++		effective_latency = 10000;
++	} else {
++		R = r_from_avg_latency(latency, R);
++	}
++
++	if (average_loss_percent > 70) {
++		effective_latency = 10000;
++	} else {
++		R = r_from_avg_loss(average_loss_percent, R);
++	}
++
++	if (effective_latency < 160) {
++		r_value = R - (effective_latency / 40);
++		r_loss = R - (average_loss_percent * 2.5);
++		if (average_loss_percent > 10) {
++			mos = get_mos_from_r(r_loss);
++		} else {
++			mos = get_mos_from_r(r_value);
++		}
++	} else {
++		r_value = R - ((effective_latency - 120) / 40);
++		r_loss = R - (average_loss_percent * 2.5);
++		if (effective_latency > 9999) {
++			mos = 1.00;
++		} else if (average_loss_percent  > 1) {
++			mos = get_mos_from_r(r_loss);
++		} else {
++			mos = get_mos_from_r(r_value);
++		}
++	}
++
++	return mos;
++}
++
+ 
+ //
+ // Generate a report
+@@ -462,7 +595,8 @@
+ report(
+     unsigned long               *average_latency_usec,
+     unsigned long               *latency_deviation,
+-    unsigned long               *average_loss_percent)
++    unsigned long               *average_loss_percent,
++	float						*mos)
+ {
+     struct timespec             now;
+     unsigned long               packets_received = 0;
+@@ -517,8 +651,9 @@
+     {
+         *average_loss_percent = 0;
+     }
+-}
+ 
++	*mos = calculate_mos(*average_latency_usec, *latency_deviation, *average_loss_percent);
++}
+ 
+ //
+ // Report thread
+@@ -534,6 +669,7 @@
+     unsigned long               average_latency_usec;
+     unsigned long               latency_deviation;
+     unsigned long               average_loss_percent;
++	float						mos;
+     ssize_t                     len;
+     ssize_t                     rs;
+     int                         r;
+@@ -550,9 +686,9 @@
+             logger("nanosleep error in report thread: %d\n", errno);
+         }
+ 
+-        report(&average_latency_usec, &latency_deviation, &average_loss_percent);
++        report(&average_latency_usec, &latency_deviation, &average_loss_percent, &mos);
+ 
+-        len = snprintf(buf, sizeof(buf), "%s%lu %lu %lu\n", identifier, average_latency_usec, latency_deviation, average_loss_percent);
++        len = snprintf(buf, sizeof(buf), "%s%lu %lu %lu %.2f\n", identifier, average_latency_usec, latency_deviation, average_loss_percent, mos);
+         if (len < 0 || (size_t) len > sizeof(buf))
+         {
+             logger("error formatting output in report thread\n");
+@@ -590,8 +726,10 @@
+     unsigned long               average_latency_usec;
+     unsigned long               latency_deviation;
+     unsigned long               average_loss_percent;
++	float						mos;
+     unsigned int                latency_alarm_decay = 0;
+     unsigned int                loss_alarm_decay = 0;
++    unsigned int                mos_alarm_decay = 0;
+     unsigned int                alert = 0;
+     unsigned int                alarm_on;
+     int                         r;
+@@ -608,7 +746,7 @@
+             logger("nanosleep error in alert thread: %d\n", errno);
+         }
+ 
+-        report(&average_latency_usec, &latency_deviation, &average_loss_percent);
++        report(&average_latency_usec, &latency_deviation, &average_loss_percent, &mos);
+ 
+         if (latency_alarm_threshold_usec)
+         {
+@@ -652,16 +790,37 @@
+             }
+         }
+ 
++        if (mos_alarm_threshold)
++        {
++            if (mos < mos_alarm_threshold)
++            {
++                if (mos_alarm_decay == 0)
++                {
++                    alert = 1;
++                }
++
++                mos_alarm_decay = ALARM_DECAY_PERIODS;
++            }
++            else if (mos_alarm_decay)
++            {
++                mos_alarm_decay--;
++                if (mos_alarm_decay == 0)
++                {
++                    alert = 1;
++                }
++            }
++        }
++
+         if (alert)
+         {
+             alert = 0;
+ 
+-            alarm_on = latency_alarm_decay || loss_alarm_decay;
++            alarm_on = latency_alarm_decay || loss_alarm_decay || mos_alarm_decay;
+             logger("%s%s: %s latency %luus stddev %luus loss %lu%%\n", identifier, dest_str, alarm_on ? "Alarm" : "Clear", average_latency_usec, latency_deviation, average_loss_percent);
+ 
+             if (alert_cmd)
+             {
+-                r = snprintf(alert_cmd + alert_cmd_offset, OUTPUT_MAX, " %s%s %u %lu %lu %lu", identifier, dest_str, alarm_on, average_latency_usec, latency_deviation, average_loss_percent);
++                r = snprintf(alert_cmd + alert_cmd_offset, OUTPUT_MAX, " %s%s %u %lu %lu %lu %f", identifier, dest_str, alarm_on, average_latency_usec, latency_deviation, average_loss_percent, mos);
+                 if (r < 0 || (size_t) r >= OUTPUT_MAX)
+                 {
+                     logger("error formatting command in alert thread\n");
+@@ -692,6 +851,7 @@
+     unsigned long               average_latency_usec;
+     unsigned long               latency_deviation;
+     unsigned long               average_loss_percent;
++	float						mos;
+     int                         sock_fd;
+     ssize_t                     len;
+     ssize_t                     rs;
+@@ -708,9 +868,9 @@
+         sock_fd = accept4(usocket_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+ #endif
+ 
+-        report(&average_latency_usec, &latency_deviation, &average_loss_percent);
++        report(&average_latency_usec, &latency_deviation, &average_loss_percent, &mos);
+ 
+-        len = snprintf(buf, sizeof(buf), "%s%lu %lu %lu\n", identifier, average_latency_usec, latency_deviation, average_loss_percent);
++        len = snprintf(buf, sizeof(buf), "%s%lu %lu %lu %.2f\n", identifier, average_latency_usec, latency_deviation, average_loss_percent, mos);
+         if (len < 0 || (size_t) len > sizeof(buf))
+         {
+             logger("error formatting output in usocket thread\n");
+@@ -798,6 +958,27 @@
+     return 0;
+ }
+ 
++//
++// Decode a mos argument
++//
++static int
++get_mos_arg(
++    const char *                arg,
++    unsigned long *             value)
++{
++    float                        v;
++
++    v = atof(arg);
++
++    // Invalid specification?
++    if (v < 0 || v > 5)
++    {
++        return 1;
++    }
++
++    *value = (float) v;
++    return 0;
++}
+ 
+ //
+ // Decode a byte length argument
+@@ -842,7 +1023,7 @@
+ {
+     fprintf(stderr, "Dpinger version 3.1\n\n");
+     fprintf(stderr, "Usage:\n");
+-    fprintf(stderr, "  %s [-f] [-R] [-S] [-P] [-B bind_addr] [-s send_interval] [-l loss_interval] [-t time_period] [-r report_interval] [-d data_length] [-o output_file] [-A alert_interval] [-D latency_alarm] [-L loss_alarm] [-C alert_cmd] [-i identifier] [-u usocket] [-p pidfile] dest_addr\n\n", progname);
++    fprintf(stderr, "  %s [-f] [-R] [-S] [-P] [-B bind_addr] [-s send_interval] [-l loss_interval] [-t time_period] [-r report_interval] [-d data_length] [-o output_file] [-A alert_interval] [-D latency_alarm] [-L loss_alarm] [-M mos_alarm] [-C alert_cmd] [-i identifier] [-u usocket] [-p pidfile] dest_addr\n\n", progname);
+     fprintf(stderr, "  options:\n");
+     fprintf(stderr, "    -f run in foreground\n");
+     fprintf(stderr, "    -R rewind output file between reports\n");
+@@ -858,6 +1039,7 @@
+     fprintf(stderr, "    -A time interval between alerts (default 1s)\n");
+     fprintf(stderr, "    -D time threshold for latency alarm (default none)\n");
+     fprintf(stderr, "    -L percent threshold for loss alarm (default none)\n");
++    fprintf(stderr, "    -M mos threshold for low alarm (default none)\n");
+     fprintf(stderr, "    -C optional command to be invoked via system() for alerts\n");
+     fprintf(stderr, "    -i identifier text to include in output\n");
+     fprintf(stderr, "    -u unix socket name for polling\n");
+@@ -913,7 +1095,7 @@
+ 
+     progname = argv[0];
+ 
+-    while((opt = getopt(argc, argv, "fRSPB:s:l:t:r:d:o:A:D:L:C:i:u:p:")) != -1)
++    while((opt = getopt(argc, argv, "fRSPB:s:l:t:r:d:o:A:D:L:M:C:i:u:p:")) != -1)
+     {
+         switch (opt)
+         {
+@@ -1006,6 +1188,14 @@
+             }
+             break;
+ 
++        case 'M':
++            r = get_mos_arg(optarg, &mos_alarm_threshold);
++            if (r)
++            {
++                fatal("invalid mos value %s\n", optarg);
++            }
++            break;
++
+         case 'C':
+             alert_cmd_offset = strlen(optarg);
+             alert_cmd = malloc(alert_cmd_offset + OUTPUT_MAX);

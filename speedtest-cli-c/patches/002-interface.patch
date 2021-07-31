@@ -1,0 +1,100 @@
+--- a/main.c	2019-07-01 18:40:23.000000000 +0530
++++ b/main.c	2020-02-01 00:26:52.184720799 +0530
+@@ -10,6 +10,7 @@
+ #include "expat.h"
+ 
+ #define URL_LENGTH_MAX       255
++#define INTERFACE_LEN         8
+ #define THREAD_NUM_MAX       10
+ #define UPLOAD_EXT_LENGTH_MAX 5
+ #define SPEEDTEST_TIME_MAX   10
+@@ -37,6 +38,7 @@
+ 
+ #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
+ 
++char    interface[INTERFACE_LEN];
+ 
+ struct thread_para
+ {
+@@ -257,6 +259,9 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
++	if (interface) {
++    	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
++	}
+     res = curl_easy_perform(curl);
+     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+     curl_easy_cleanup(curl);
+@@ -297,6 +302,9 @@
+     curl_easy_setopt(curl, CURLOPT_URL, p_para->url);
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, p_para);
++	if (interface) {
++    	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
++	}
+     res = curl_easy_perform(curl);
+     if (res != CURLE_OK) {
+         printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+@@ -512,6 +520,9 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
++	if (interface) {
++    	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
++	}
+     
+     while (loop) {
+ 
+@@ -625,6 +636,9 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_web_buf);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &web);
+     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	if (interface) {
++    	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
++	}
+     res = curl_easy_perform(curl);
+     curl_easy_cleanup(curl);
+     if (res != CURLE_OK) {
+@@ -659,6 +673,9 @@
+     curl_easy_setopt(curl, CURLOPT_USERAGENT, "haibbo speedtest-cli");
+     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	if (interface) {
++    	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
++	}
+     res = curl_easy_perform(curl);
+     curl_easy_cleanup(curl);
+     if (res != CURLE_OK) {
+@@ -699,6 +716,9 @@
+     curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.2; rv:22.0) Gecko/20130405 Firefox/22.0");
+     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+     res = curl_easy_perform(curl);
++	if (interface) {
++    	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
++	}
+     curl_easy_cleanup(curl);
+     if (res != CURLE_OK) {
+         printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+@@ -750,9 +770,10 @@
+     num_thread  = 4;
+     dsize       = INIT_DOWNLOAD_FILE_RESOLUTION;
+     memset(server_url, 0, sizeof(server_url));
++    memset(interface, 0, sizeof(interface));
+     memset(ext, 0, sizeof(ext));
+ 
+-    while ( (opt = getopt(argc, argv, "p:s:lh")) > 0) {
++    while ( (opt = getopt(argc, argv, "p:s:i:lh")) > 0) {
+ 
+         switch (opt) {
+             case 'p':
+@@ -766,6 +787,9 @@
+             case 's':
+                 strncpy(server_url, optarg, URL_LENGTH_MAX);
+                 break;
++            case 'i':
++                strncpy(interface, optarg, INTERFACE_LEN);
++                break;
+             case 'l':
+                 break;
+             case 'h':

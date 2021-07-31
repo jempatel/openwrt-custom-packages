@@ -1,0 +1,131 @@
+diff -NPuar a/kmod/main.c b/kmod/main.c
+--- a/kmod/main.c	2018-04-19 18:24:09.000000000 +0530
++++ b/kmod/main.c	2019-11-11 21:49:59.065401849 +0530
+@@ -79,7 +79,7 @@
+             nf_ct_kill(ct);
+         }
+         return NF_ACCEPT;
+-    } else if (ctinfo == IP_CT_NEW && (is_allowed_dest_ip(skb, state) || is_allowed_mac(skb, state))) {
++    } else if (ctinfo == IP_CT_NEW && (is_allowed_dest_net(skb, state) || is_allowed_dest_ip(skb, state) || is_allowed_mac(skb, state))) {
+         ct->status |= IPS_ALLOWED;
+         return NF_ACCEPT;
+     }
+diff -NPuar a/kmod/utils.h b/kmod/utils.h
+--- a/kmod/utils.h	2018-04-19 18:24:09.000000000 +0530
++++ b/kmod/utils.h	2019-11-11 21:52:08.536497934 +0530
+@@ -57,4 +57,16 @@
+     return wd_ip_set_test("wifidog-ng-ip", skb, &opt, state);
+ }
+ 
++static inline int is_allowed_dest_net(struct sk_buff *skb, const struct nf_hook_state *state)
++{
++    static struct ip_set_adt_opt opt = {
++        .family = NFPROTO_IPV4,
++        .dim = IPSET_DIM_ONE,
++        .ext.timeout = UINT_MAX,
++    };
++
++    return wd_ip_set_test("wifidog-ng-net", skb, &opt, state);
++}
++
++
+ #endif
+diff -NPuar a/src/main.c b/src/main.c
+--- a/src/main.c	2018-04-19 18:24:09.000000000 +0530
++++ b/src/main.c	2019-11-11 21:26:32.161470353 +0530
+@@ -53,10 +53,12 @@
+ 
+     ipset_create(IPSET_MAC, "hash:mac", IPSET_PERMANENT_TIME);
+     ipset_create(IPSET_IP, "hash:ip", 0);
++    ipset_create(IPSET_NET, "hash:net", 0);
+ 
+     /* Mabe it is exist before create it */
+     ipset_flush(IPSET_MAC);
+     ipset_flush(IPSET_IP);
++    ipset_flush(IPSET_NET);
+ 
+     while ((opt = getopt(argc, argv, "v")) != -1) {
+         switch (opt) {
+@@ -99,6 +101,7 @@
+     wifidog_ubus_free();
+     ipset_destroy(IPSET_MAC);
+     ipset_destroy(IPSET_IP);
++    ipset_destroy(IPSET_NET);
+     ipset_deinit();
+     ULOG_INFO("wifidog-ng exit.\n");
+     
+diff -NPuar a/src/term.h b/src/term.h
+--- a/src/term.h	2018-04-19 18:24:09.000000000 +0530
++++ b/src/term.h	2019-11-11 21:26:02.741471094 +0530
+@@ -26,6 +26,7 @@
+ #define IPSET_PERMANENT_TIME    (100 * 24 * 60 * 60)
+ #define IPSET_MAC               "wifidog-ng-mac"
+ #define IPSET_IP                "wifidog-ng-ip"
++#define IPSET_NET               "wifidog-ng-net"
+ 
+ enum {
+     TERM_FLAG_AUTHED = (1 << 0),
+diff -NPuar a/src/utils.c b/src/utils.c
+--- a/src/utils.c	2018-04-19 18:24:09.000000000 +0530
++++ b/src/utils.c	2019-11-11 21:37:12.797454208 +0530
+@@ -206,6 +206,27 @@
+     destip_ctl(ip, false);
+ }
+ 
++static void destnet_ctl(const char *net, bool allow)
++{
++    printf("destnet_ctl: %s\n", net);
++    if (allow)
++        ipset_add("wifidog-ng-net", net, 0);
++    else
++        ipset_del("wifidog-ng-net", net);
++
++    ULOG_INFO("%s destnet: %s\n", net, allow ? "allow" : "deny");
++}
++
++void allow_destnet(const char *net)
++{
++    destnet_ctl(net, true);
++}
++
++void deny_destnet(const char *net)
++{
++    destip_ctl(net, false);
++}
++
+ static void my_resolv_cb(struct hostent *he, void *data)
+ {
+     char **p;
+@@ -275,4 +296,4 @@
+     }
+ 
+     return (i == 12 && (s == 5 || s == 0));
+-}
+\ No newline at end of file
++}
+diff -NPuar a/src/utils.h b/src/utils.h
+--- a/src/utils.h	2018-04-19 18:24:09.000000000 +0530
++++ b/src/utils.h	2019-11-11 21:31:23.509463010 +0530
+@@ -30,6 +30,9 @@
+ void allow_destip(const char *ip);
+ void deny_destip(const char *ip);
+ 
++void allow_destnet(const char *net);
++void deny_destnet(const char *net);
++
+ void allow_domain(const char *domain);
+ void deny_domain(const char *domain);
+ 
+--- a/src/config.c	2018-04-19 18:24:09.000000000 +0530
++++ b/src/config.c	2019-11-11 22:18:55.324457442 +0530
+@@ -344,6 +344,10 @@
+             parse_popular_server(s);
+         } else if (!strcmp(s->type, "whitelist_domain")) {
+             parse_whitelist_domain(s);
++        } else if (!strcmp(s->type, "whitelist_subnet")) {
++            const char *subnet = uci_lookup_option_string(cursor, s, "subnet");
++            if (subnet)
++                allow_destnet(subnet);
+         } else if (!strcmp(s->type, "whitelist_mac")) {
+             const char *mac = uci_lookup_option_string(cursor, s, "mac");
+             if (mac)

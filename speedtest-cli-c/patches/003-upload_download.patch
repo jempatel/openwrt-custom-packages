@@ -1,0 +1,206 @@
+--- a/main.c	2020-02-01 00:30:19.992715562 +0530
++++ b/main.c	2020-02-01 17:53:15.517121520 +0530
+@@ -39,6 +39,10 @@
+ #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
+ 
+ char    interface[INTERFACE_LEN];
++int     verbose = 0;
++int     download = 1;
++int     upload = 1;
++int     latency = 1;
+ 
+ struct thread_para
+ {
+@@ -83,7 +87,14 @@
+ 
+ static int show_usage(char* argv[])
+ {
+-    printf("%s:\n\t\t -p number of threads\n"                 "\t\t -l list all valid server\n"                 "\t\t -s specify mini ookla server url\n", argv[0]);
++    printf("%s:\n"
++			"\t\t -i interface\n"
++			"\t\t -p number of threads\n"
++			"\t\t -l list all valid server\n"
++			"\t\t -X skip latency test\n"
++			"\t\t -D skip download test\n"
++			"\t\t -U skip upload test\n"
++			"\t\t -s specify mini ookla server url\n", argv[0]);
+     exit(0);
+ }
+ 
+@@ -259,9 +270,15 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
++
++	if (verbose) {
++        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	}
++
+ 	if (interface) {
+     	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
+ 	}
++
+     res = curl_easy_perform(curl);
+     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+     curl_easy_cleanup(curl);
+@@ -302,9 +319,15 @@
+     curl_easy_setopt(curl, CURLOPT_URL, p_para->url);
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, p_para);
++
++	if (verbose) {
++        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	}
++
+ 	if (interface) {
+     	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
+ 	}
++
+     res = curl_easy_perform(curl);
+     if (res != CURLE_OK) {
+         printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+@@ -520,6 +543,11 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
++
++	if (verbose) {
++        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	}
++
+ 	if (interface) {
+     	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
+ 	}
+@@ -635,10 +663,15 @@
+     curl_easy_setopt(curl, CURLOPT_URL, server);
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_web_buf);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &web);
+-    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++
++	if (verbose) {
++        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	}
++
+ 	if (interface) {
+     	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
+ 	}
++
+     res = curl_easy_perform(curl);
+     curl_easy_cleanup(curl);
+     if (res != CURLE_OK) {
+@@ -672,10 +705,15 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &web);
+     curl_easy_setopt(curl, CURLOPT_USERAGENT, "haibbo speedtest-cli");
+     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+-    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++
++	if (verbose) {
++        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	}
++
+ 	if (interface) {
+     	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
+ 	}
++
+     res = curl_easy_perform(curl);
+     curl_easy_cleanup(curl);
+     if (res != CURLE_OK) {
+@@ -714,11 +752,16 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_web_buf);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &web);
+     curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.2; rv:22.0) Gecko/20130405 Firefox/22.0");
+-    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+-    res = curl_easy_perform(curl);
++
++	if (verbose) {
++        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
++	}
++
+ 	if (interface) {
+     	curl_easy_setopt(curl, CURLOPT_INTERFACE, interface);
+ 	}
++
++    res = curl_easy_perform(curl);
+     curl_easy_cleanup(curl);
+     if (res != CURLE_OK) {
+         printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+@@ -773,17 +816,28 @@
+     memset(interface, 0, sizeof(interface));
+     memset(ext, 0, sizeof(ext));
+ 
+-    while ( (opt = getopt(argc, argv, "p:s:i:lh")) > 0) {
++    while ( (opt = getopt(argc, argv, "p:s:i:vDUXlh")) > 0) {
+ 
+         switch (opt) {
+             case 'p':
+                 if (atoi(optarg) > THREAD_NUM_MAX) {
+-
+                     fprintf(stderr, "Only support %d threads meanwhile", THREAD_NUM_MAX);
+                     exit(-1);
+                 }
+                 num_thread = atoi(optarg);
+                 break;
++            case 'v':
++				verbose = 1;
++                break;
++            case 'X':
++				latency = 0;
++                break;
++            case 'D':
++				download = 0;
++                break;
++            case 'U':
++				upload = 0;
++                break;
+             case 's':
+                 strncpy(server_url, optarg, URL_LENGTH_MAX);
+                 break;
+@@ -813,27 +867,33 @@
+     /* Must initialize libcurl before any threads are started */
+     curl_global_init(CURL_GLOBAL_ALL);
+ 
+-    latency = test_latency(server_url);
+-    if (latency == DBL_MAX)
+-        exit(-1);
+-    printf("Server latency is %0.0fms\n", latency);
++	if (latency) {
++        latency = test_latency(server_url);
++        if (latency == DBL_MAX)
++            exit(-1);
++        printf("Server latency is %0.0fms\n", latency);
++	}
+ 
+-    speed = test_download(server_url, num_thread, dsize, 0);
+ 
+-    dsize = get_download_filename(speed, num_thread);
+-    fprintf(stderr, "Testing download speed");
+-    download_speed = test_download(server_url, num_thread, dsize, 1);
++	if (download) {
++        speed = test_download(server_url, num_thread, dsize, 0);
+ 
+-    printf("Download speed: %0.2fMbps\n", ((download_speed*8)/(1024*1024)));
++        dsize = get_download_filename(speed, num_thread);
++        fprintf(stderr, "Testing download speed");
++        download_speed = test_download(server_url, num_thread, dsize, 1);
+ 
+-    if (ext[0] == 0 && get_upload_extension(server_url, ext) != OK)
+-        exit(-1);
++        printf("Download speed: %0.2fMbps\n", ((download_speed*8)/(1024*1024)));
++	}
+ 
+-    speed = test_upload(server_url, num_thread, speed, ext, 0);
++	if (upload) {
++        if (ext[0] == 0 && get_upload_extension(server_url, ext) != OK)
++            exit(-1);
+ 
+-    fprintf(stderr, "Testing upload speed");
+-    upload_speed = test_upload(server_url, num_thread, speed*SPEEDTEST_TIME_MAX, ext, 1);
++        speed = test_upload(server_url, num_thread, speed, ext, 0);
+ 
+-    printf("Upload speed: %0.2fMbps\n", ((upload_speed*8)/(1024*1024)));
++        fprintf(stderr, "Testing upload speed");
++        upload_speed = test_upload(server_url, num_thread, speed*SPEEDTEST_TIME_MAX, ext, 1);
+ 
++        printf("Upload speed: %0.2fMbps\n", ((upload_speed*8)/(1024*1024)));
++    }
+ }

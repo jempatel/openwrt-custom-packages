@@ -1,0 +1,38 @@
+--- a/src/ipset.c	2021-02-28 18:39:59.498290905 +0530
++++ b/src/ipset.c	2021-02-28 18:39:15.626210280 +0530
+@@ -31,7 +31,7 @@
+     ipset_load_types();
+ 
+     /* Initialize session */
+-    session = ipset_session_init(NULL);
++    session = ipset_session_init(NULL, NULL);
+     if (!session) {
+         ULOG_ERR("Cannot initialize ipset session, aborting.\n");
+         return -1;
+@@ -46,7 +46,7 @@
+ 
+ static int handle_error(const char *tag)
+ {
+-    ULOG_ERR("%s: %s\n", tag, ipset_session_error(session));
++    ULOG_ERR("%s: %s\n", tag, ipset_session_report_msg(session));
+     return -1;
+ }
+ 
+@@ -55,8 +55,6 @@
+     int cmd = IPSET_CMD_CREATE;
+     const struct ipset_type *type;
+ 
+-    ipset_envopt_parse(session, IPSET_ENV_EXIST, NULL);
+-
+     if (ipset_parse_setname(session, IPSET_SETNAME, setname))
+         return handle_error("ipset_parse_setname");
+ 
+@@ -102,8 +100,6 @@
+ 	int cmd = add ? IPSET_CMD_ADD : IPSET_CMD_DEL;
+ 	const struct ipset_type *type;
+ 
+-    ipset_envopt_parse(session, IPSET_ENV_EXIST, NULL);
+-
+ 	if (ipset_parse_setname(session, IPSET_SETNAME, setname))
+         return handle_error("ipset_parse_setname");
+ 

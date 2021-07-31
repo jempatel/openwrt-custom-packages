@@ -1,0 +1,42 @@
+--- a/main.c	2020-10-04 03:32:45.706913804 +0530
++++ b/main.c	2020-10-04 03:33:04.698913732 +0530
+@@ -269,6 +269,7 @@
+     curl_easy_setopt(curl, CURLOPT_URL, latency_url);
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
++    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.2; rv:22.0) Gecko/20130405 Firefox/22.0");
+     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
+ 
+ 	if (verbose) {
+@@ -319,6 +320,7 @@
+     curl_easy_setopt(curl, CURLOPT_URL, p_para->url);
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, p_para);
++    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.2; rv:22.0) Gecko/20130405 Firefox/22.0");
+ 
+ 	if (verbose) {
+         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+@@ -543,6 +545,7 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
++    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.2; rv:22.0) Gecko/20130405 Firefox/22.0");
+ 
+ 	if (verbose) {
+         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+@@ -663,6 +666,7 @@
+     curl_easy_setopt(curl, CURLOPT_URL, server);
+     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_web_buf);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &web);
++    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.2; rv:22.0) Gecko/20130405 Firefox/22.0");
+ 
+ 	if (verbose) {
+         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+@@ -705,6 +709,7 @@
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &web);
+     curl_easy_setopt(curl, CURLOPT_USERAGENT, "haibbo speedtest-cli");
+     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
++    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.2; rv:22.0) Gecko/20130405 Firefox/22.0");
+ 
+ 	if (verbose) {
+         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);

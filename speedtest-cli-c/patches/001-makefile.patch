@@ -1,0 +1,18 @@
+--- a/Makefile	2019-07-01 18:40:23.000000000 +0530
++++ b/Makefile	2019-11-30 15:09:50.479849312 +0530
+@@ -1,5 +1,11 @@
+-speedtest_cli: main.c
+-	gcc $< -lpthread -lcurl -lexpat -lm -o $@
++include $(TOPDIR)/rules.mk
+ 
+-clean:
+-	rm speedtest_cli
++NAME=speedtest_cli
++OBJS = main.o
++LIBS += -lpthread -lcurl -lm -lexpat
++
++speedtest_cli: main.c
++	$(TARGET_CC) $< $(LDFLAGS) $(LIBS) -o $@
++
++clean: default-clean
++	rm -rf $(OBJS) $(NAME)
