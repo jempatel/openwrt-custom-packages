@@ -94,3 +94,24 @@ init_lock_signals() {
 	init_signals
 	acquire_lock
 }
+
+get_index() {
+	[ $# -lt 2 ] && return 1
+
+	local var=$1
+	local str=$2
+	local ele
+	local i=1
+
+	eval "val=\"\${$var}\""
+
+	for ele in ${val}; do
+		if [[ "$ele" = "$str" ]]; then
+			echo "$i"
+			return 0
+		fi
+		((i++))
+	done
+
+	return 1
+}
