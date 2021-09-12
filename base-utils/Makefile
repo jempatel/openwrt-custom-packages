@@ -2,14 +2,14 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=base-utils
 PKG_VERSION:=1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/$(PKG_NAME)
   TITLE:=Base Utilities
   CATEGORY:=Custom
-  DEPENDS:= +base-files +curl +rpcd +uci +uuidgen +jsonfilter +libubox
+  DEPENDS:= +base-files +curl +rpcd +uci +uuidgen +jsonfilter +libubox +jq
 endef
 
 define Package/$(PKG_NAME)/description

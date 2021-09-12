@@ -48,6 +48,18 @@ uci_option_references() {
 	/sbin/uci ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show "$PACKAGE" | awk -F'[.=]' '{if ((NR!=1) && ($3 ~ "'"_ref_$OPTION"'$") && ($4 ~ "'"$VALUE"'")) {printf("%s.%s.%s\n", $1, $2, $3)};}' | sort -u
 }
 
+uci_section_idx() {
+	[ $# -lt 3 ] && return 1
+
+	local PACKAGE=$1
+	local TYPE=$2
+	local SECTION=$3
+	local sections
+
+	sections=$(uci_sections "$CONFIG" "$TYPE")
+	get_index sections "$SECTION"
+}
+
 run_uci_cmd() {
 	[ $# -lt 4 ] && return 1
 
