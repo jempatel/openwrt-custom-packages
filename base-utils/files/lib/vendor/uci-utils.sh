@@ -79,17 +79,13 @@ run_uci_cmd() {
 }
 
 add_uci_cmd() {
-	[ $# -lt 4 ] && return 1
+	[ $# -lt 3 ] && return 1
 
 	local PACKAGE=$1
-	shift
-	local SECTION=$1
-	shift
-	local OPTION=$1
-	shift
-	local VALUE="$*"
+	local SECTION=$2
+	local VALUE=$3
 
-	uci_set "$PACKAGE" "$SECTION" "$OPTION" "$VALUE"
+	uci_add "$PACKAGE" "$SECTION" "$VALUE"
 }
 
 run_uci_cmd_list() {
