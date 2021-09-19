@@ -109,7 +109,7 @@ run_uci_cmd_list() {
 	OVALUES=$(uci_get "$PACKAGE" "$SECTION" "$OPTION")
 
 	for v in $NVALUES; do
-		if ! echo "$NVALUES" | grep -q -w "$v"; then
+		if ! echo "$OVALUES" | grep -q -w "$v"; then
 			uci_add_list "$PACKAGE" "$SECTION" "$OPTION" "$v" && flag=0
 		fi
 	done
