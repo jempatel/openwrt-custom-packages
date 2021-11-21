@@ -26,7 +26,7 @@ uci_sections_from_option_value() {
 	local VALUE="'$2'"
 	local PACKAGE="$3"
 
-	/sbin/uci -p /var/state ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show "$PACKAGE" | awk -F[.=] '{if (($3 == "'"$OPTION"'") && ($4 ~ "'"$VALUE"'")) {print $2};}' | sort -u
+	/sbin/uci -p /var/state ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show $PACKAGE | awk -F[.=] '{if ((NF >= 4) && ($3 == "'$OPTION'") && ($0 ~ "'"$VALUE"'")) {print $2};}' | sort -u
 }
 
 uci_sections_from_value() {
