@@ -60,6 +60,30 @@ uci_section_idx() {
 	get_index sections "$SECTION"
 }
 
+uci_add_to_list() {
+    local CONFIG=$1
+    local SECTION=$2
+    local OPTION=$3
+    local VALUE=$4
+    local values
+
+    values=$(uci_get "$CONFIG" "$SECTION" "$OPTION")
+    list_contains values "$VALUE" && return 1
+
+    uci_add_list "$CONFIG" "$SECTION" "$OPTION" "$VALUE"
+    return 0
+}
+
+uci_config_changed() {
+    [ $# -lt 1 ] && return 1
+
+    local CONFIG=$1
+    local data
+
+    data=$(uci changes "$CONFIG" 2>/dev/null)
+    [[ -n "$data" ]]
+}
+
 run_uci_cmd() {
 	[ $# -lt 4 ] && return 1
 
@@ -82,10 +106,14 @@ add_uci_cmd() {
 	[ $# -lt 3 ] && return 1
 
 	local PACKAGE=$1
-	local SECTION=$2
-	local VALUE=$3
+	local TYPE=$2
+	local SECTION=$3
+	local data
 
-	uci_add "$PACKAGE" "$SECTION" "$VALUE"
+	data=$(uci_get "$PACKAGE" "$SECTION")
+	[ "$data" == "$TYPE" ] && return 1
+
+	uci_add "$PACKAGE" "$TYPE" "$SECTION"
 }
 
 run_uci_cmd_list() {
