@@ -16,7 +16,7 @@ uci_section_options() {
 	local PACKAGE="$1"
 	local CONFIG="$2"
 
-	/sbin/uci ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show "$PACKAGE.$CONFIG" | awk -F'[.=]' '{if (NR!=1) {printf("%s\n",$3)};}'
+	/sbin/uci ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show "$PACKAGE.$CONFIG" | awk -F'[.=]' '{if (NR!=1) {printf("%s ",$3)};}'
 }
 
 uci_sections_from_option_value() {
