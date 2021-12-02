@@ -116,6 +116,26 @@ add_uci_cmd() {
 	uci_add "$PACKAGE" "$TYPE" "$SECTION"
 }
 
+remove_uci_cmd() {
+	[ $# -lt 3 ] && return 1
+
+	local PACKAGE=$1
+	local SECTION=$2
+	local OPTION=$3
+	local VALUE="$4"
+	local options data
+
+	if [ -z "$VALUE" ]; then
+		options=$(uci_section_options "$PACKAGE" "$SECTION")
+		list_contains options "$OPTION" || return 1
+	else
+		data=$(uci_get "$PACKAGE" "$SECTION" "$OPTION")
+		[ "$data" != "$VALUE" ] && return 1
+	fi
+
+	uci_remove "$PACKAGE" "$SECTION" "$OPTION"
+}
+
 run_uci_cmd_list() {
 	[ $# -lt 4 ] && return 1
 
