@@ -16,7 +16,7 @@ uci_section_options() {
 	local PACKAGE="$1"
 	local CONFIG="$2"
 
-	/sbin/uci ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show "$PACKAGE.$CONFIG" | awk -F'[.=]' '{if (NR!=1) {printf("%s\n",$3)};}'
+	/sbin/uci ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show "$PACKAGE.$CONFIG" | awk -F'[.=]' '{if (NR!=1) {printf("%s ",$3)};}'
 }
 
 uci_sections_from_option_value() {
@@ -26,7 +26,7 @@ uci_sections_from_option_value() {
 	local VALUE="'$2'"
 	local PACKAGE="$3"
 
-	/sbin/uci -p /var/state ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show "$PACKAGE" | awk -F[.=] '{if (($3 == "'"$OPTION"'") && ($4 ~ "'"$VALUE"'")) {print $2};}' | sort -u
+	/sbin/uci -p /var/state ${UCI_CONFIG_DIR:+-c $UCI_CONFIG_DIR} show $PACKAGE | awk -F[.=] '{if ((NF >= 4) && ($3 == "'$OPTION'") && ($0 ~ "'"$VALUE"'")) {print $2};}' | sort -u
 }
 
 uci_sections_from_value() {
@@ -60,6 +60,30 @@ uci_section_idx() {
 	get_index sections "$SECTION"
 }
 
+uci_add_to_list() {
+    local CONFIG=$1
+    local SECTION=$2
+    local OPTION=$3
+    local VALUE=$4
+    local values
+
+    values=$(uci_get "$CONFIG" "$SECTION" "$OPTION")
+    list_contains values "$VALUE" && return 1
+
+    uci_add_list "$CONFIG" "$SECTION" "$OPTION" "$VALUE"
+    return 0
+}
+
+uci_config_changed() {
+    [ $# -lt 1 ] && return 1
+
+    local CONFIG=$1
+    local data
+
+    data=$(uci changes "$CONFIG" 2>/dev/null)
+    [[ -n "$data" ]]
+}
+
 run_uci_cmd() {
 	[ $# -lt 4 ] && return 1
 
@@ -79,17 +103,37 @@ run_uci_cmd() {
 }
 
 add_uci_cmd() {
-	[ $# -lt 4 ] && return 1
+	[ $# -lt 3 ] && return 1
 
 	local PACKAGE=$1
-	shift
-	local SECTION=$1
-	shift
-	local OPTION=$1
-	shift
-	local VALUE="$*"
+	local TYPE=$2
+	local SECTION=$3
+	local data
 
-	uci_set "$PACKAGE" "$SECTION" "$OPTION" "$VALUE"
+	data=$(uci_get "$PACKAGE" "$SECTION")
+	[ "$data" == "$TYPE" ] && return 1
+
+	uci_add "$PACKAGE" "$TYPE" "$SECTION"
+}
+
+remove_uci_cmd() {
+	[ $# -lt 3 ] && return 1
+
+	local PACKAGE=$1
+	local SECTION=$2
+	local OPTION=$3
+	local VALUE="$4"
+	local options data
+
+	if [ -z "$VALUE" ]; then
+		options=$(uci_section_options "$PACKAGE" "$SECTION")
+		list_contains options "$OPTION" || return 1
+	else
+		data=$(uci_get "$PACKAGE" "$SECTION" "$OPTION")
+		[ "$data" != "$VALUE" ] && return 1
+	fi
+
+	uci_remove "$PACKAGE" "$SECTION" "$OPTION"
 }
 
 run_uci_cmd_list() {
@@ -109,7 +153,7 @@ run_uci_cmd_list() {
 	OVALUES=$(uci_get "$PACKAGE" "$SECTION" "$OPTION")
 
 	for v in $NVALUES; do
-		if ! echo "$NVALUES" | grep -q -w "$v"; then
+		if ! echo "$OVALUES" | grep -q -w "$v"; then
 			uci_add_list "$PACKAGE" "$SECTION" "$OPTION" "$v" && flag=0
 		fi
 	done
