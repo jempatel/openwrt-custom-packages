@@ -22,7 +22,7 @@ get_ssid() {
 get_firmware_version() {
 	# shellcheck source=/dev/null
 	. /etc/os-release
-	echo "$VERSION_ID"
+	echo "${VERSION_ID}-$(cat /etc/openwrt_version)"
 }
 
 get_vendor() {
