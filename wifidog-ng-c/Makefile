@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=wifidog-ng-c
 PKG_VERSION:=1.5.6
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_VERSION:=v$(PKG_VERSION)
@@ -82,7 +82,23 @@ Package/wifidog-ng-c-openssl/install = $(Package/wifidog-ng-c/default/install)
 Package/wifidog-ng-c-wolfssl/install = $(Package/wifidog-ng-c/default/install)
 Package/wifidog-ng-c-mbedtls/install = $(Package/wifidog-ng-c/default/install)
 
+define KernelPackage/wifidog-ng
+  SUBMENU:=Other modules
+  TITLE:=Kernel module for wifidog-ng
+  DEPENDS:=+kmod-nf-nat +kmod-ipt-ipset
+  FILES:=$(PKG_BUILD_DIR)/wifidog-ng.ko
+endef
+
+include $(INCLUDE_DIR)/kernel-defaults.mk
+
+define Build/Compile
+	$(MAKE) $(KERNEL_MAKEOPTS) M="$(PKG_BUILD_DIR)" modules
+endef
+
+
 $(eval $(call BuildPackage,wifidog-ng-c-nossl))
 $(eval $(call BuildPackage,wifidog-ng-c-mbedtls))
 $(eval $(call BuildPackage,wifidog-ng-c-wolfssl))
 $(eval $(call BuildPackage,wifidog-ng-c-openssl))
+
+$(eval $(call KernelPackage,wifidog-ng))
